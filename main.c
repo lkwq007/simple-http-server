@@ -38,13 +38,12 @@
 #define HTTP_500 2
 #define HTTP_GET 0
 #define HTTP_POST 1
-#define VER_LOGIN 111111
-#define VER_PASS 999999
 char http_status[3][64] = { "200 OK","404 Not Found","500 Internal Server Error" };
 char http_template[256] = "HTTP/1.1 %s\nServer: Lnyan's Simple HTTP Server\nContent-Length: %d\nContent-Type: %s\n\n";
 char verify_template[256] = "<!DOCTYPE html><html><head><title>%s</title></head><body><p>%s</p></body></html>";
 char LOGIN[128] = "username";
 char PASS[128] = "password";
+char working_dir[1024] = ".";
 struct Client_
 {
 	char *host;
@@ -162,6 +161,7 @@ int server(Client client)
 	char rep[8192], *rep_type, *match, dir_buf[512];;
 	int rep_stat=0, rep_len=0;
 	struct timeval timeout;
+	strcpy(path, working_dir);
 	timeout.tv_sec = 0;
 	timeout.tv_usec = 2000;
 	FD_ZERO(&input);
@@ -311,15 +311,9 @@ int server(Client client)
 				{
 				case HTTP_GET:
 				{
-					strcpy(path, ".");
+					strcpy(path, working_dir);
 					strcat(path, url);
-					rep_type = get_mime_type(path);
 					rep_len = 0;
-					if (!rep_type)
-					{
-						rep_type = malloc(128 * sizeof(char));
-						strcpy(rep_type, "application/octet-stream");
-					}
 					break;
 				}
 				case HTTP_POST:
@@ -333,8 +327,6 @@ int server(Client client)
 					{
 						rep_stat = HTTP_200;
 						printf("\n%s\n", body);
-						//if (((sscanf(body, "login=%lld&pass=%lld", &login, &pass)) > 0 ||
-						//	(sscanf(body, "pass=%lld&login=%d", &pass, &login)) > 0) && login == VER_LOGIN&&pass == VER_PASS)
 						if (((sscanf(body, "login=%[^&]&pass=%s", login, pass)) > 0 ||
 							(sscanf(body, "pass=%[^&]&login=%s", pass, login)) > 0) && !strcmp(login,LOGIN)&&!strcmp(pass,PASS))
 						{
@@ -390,6 +382,12 @@ int server(Client client)
 					//}
 					if (path[strlen(path) - 1] != '/'&&is_regular_file(path))
 					{
+						rep_type = get_mime_type(path);
+						if (!rep_type)
+						{
+							rep_type = malloc(128 * sizeof(char));
+							strcpy(rep_type, "application/octet-stream");
+						}
 						get_file = open(path, O_RDONLY);
 						if (get_file == -1)
 						{
@@ -430,7 +428,7 @@ int server(Client client)
 								sprintf(dir_buf,"<p><a href=\"%s%s\">%s</a></p>", url, ent->d_name,ent->d_name);
 								strcat(rep, dir_buf);
 							}
-							close(dir);
+							closedir(dir);
 							strcat(rep, "</body></html>");
 							rep_stat = HTTP_200;
 							rep_len = strlen(rep);
@@ -471,9 +469,11 @@ int server(Client client)
 	return 0;
 }
 
-int main(void)
+int main(int argc,char *argv[])
 {
-	char buf[8192];
+	char cwd[1024];
+	int current_dir = 1;
+	DIR *dir;
 	char address[32] = "0.0.0.0", port[32] = "8080";
 	int sfd = create_inet_server_socket(address, port, LIBSOCKET_TCP, LIBSOCKET_IPv4, 0);
 	if (sfd < 0)
@@ -484,6 +484,40 @@ int main(void)
 	printf("Listening %s at port %s..\n", address, port);
 	threadpool thpool = thpool_init(16);
 	printf("Thead pool has started.\n");
+	if (argc > 1)
+	{
+		if (argv[1][0] == '/')
+		{
+			strcpy(cwd, argv[1]);
+		}
+		else
+		{
+			strcpy(cwd, "./");
+			strcat(cwd, argv[1]);
+		}
+		if (dir = opendir(cwd))
+		{
+			closedir(dir);
+			current_dir = 0;
+			printf("Working at %s\n", cwd);
+			strcpy(working_dir, cwd);
+		}
+		else
+		{
+			printf("Invalid argv %s\n", argv[1]);
+		}
+	}
+	if(current_dir)
+	{
+		if (getcwd(cwd, sizeof(cwd)) != NULL)
+		{
+			printf("Working at %s\n", cwd);
+		}
+		else
+		{
+			printf("Working in sever's directory\n");
+		}
+	}
 	while (1)
 	{
 		char *host = (char *)malloc(128);
