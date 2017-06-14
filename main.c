@@ -24,7 +24,7 @@
 #define HTTP_POST 1
 // http convention & template
 char http_status[3][64] = { "200 OK","404 Not Found","500 Internal Server Error" };
-char http_template[256] = "HTTP/1.1 %s\nServer: Lnyan's Simple HTTP Server\nContent-Length: %d\nContent-Type: %s\n\n";
+char http_template[256] = "HTTP/1.1 %s\r\nServer: Lnyan's Simple HTTP Server\r\nContent-Length: %d\r\nContent-Type: %s\r\n\r\n";
 char verify_template[256] = "<!DOCTYPE html><html><head><title>%s</title></head><body><p>%s</p></body></html>";
 // login&pass for /dopost, it's lab requirement
 char LOGIN[128] = "username";
